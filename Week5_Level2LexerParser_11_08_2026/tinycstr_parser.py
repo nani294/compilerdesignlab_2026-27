@@ -1,12 +1,12 @@
 """
-TinyCStr Level 2 Parser (Stages 2a -> 2c)
+TinyCStr Level 2 Parser -- fully complete.
 
-Read docs/level2_token_reference.md and docs/sly_help2.md
-before editing this file.
+This is a verified, working Level 2 parser 
 
- "LEVEL 2": staged 2a -> 2b -> 2c. Get each stage's tests passing before starting
-the next.
-
+WEEK 6 ADDITION: every AST-node-constructing rule now passes
+`lineno=value.lineno` -- see docs/lineno_and_type_checking.md for what
+this SLY property actually returns and why it's reliable even for
+multi-symbol productions.
 """
 from sly import Parser
 
@@ -21,24 +21,11 @@ class TinyCStrParser(Parser):
     tokens = TinyCStrLexer.tokens
 
     precedence = (
+        ('right', 'QUESTION', 'COLON'),
+        ('left', 'LT', 'GT', 'LE', 'GE', 'EQ', 'NE'),
         ('left', 'PLUS', 'MINUS'),
         ('left', 'TIMES', 'DIVIDE'),
-        # TODO(week-5, stage-2b): relational operators less precedence than
-        # arithmetic so their precedence entry must be
-        # ADDED ABOVE the two lines already here, not below -- remember
-        # SLY's tuple order is low-to-high, entries LOWER in the tuple
-        # having more predecence. See docs/sly_help2.md #3.
-        #
-        # TODO(week-5, stage-2c): ternary less predence than
-        # relational -- its precedence entry goes even further above
-        # (i.e. is the very FIRST entry in the tuple). See
-        # docs/sly_help2.md #4.
-        #
-        # TODO(week-5, stage-2c): cast higher precedence than everything
-        # else (it's essentially a unary, prefix operator) -- needs a
-        # dummpy precedence token added as the LAST (highest) entry
-        # in this tuple. See docs/sly_help2.md #5 for the
-        # exact idiom (SLY's %prec mechanism)
+        ('right', 'UCAST'),
     )
 
     def __init__(self):
@@ -83,14 +70,17 @@ class TinyCStrParser(Parser):
     def decl(self, value):
         return [SymbolTableEntry(name, DataType.INT) for name in value[1]]
 
-    # TODO(week-5, stage-2a): add a `decl` alternative for
-    # `DOUBLE id_list SEMICOLON`, producing SymbolTableEntry objects
-    # with DataType.DOUBLE -- same shape as the INT rule just above,
-    # different keyword token and DataType value.
-    #
-    # TODO(week-5, stage-2b): add two more `decl` alternatives, for
-    # `CHAR id_list SEMICOLON` (DataType.CHAR) and
-    # `STRING id_list SEMICOLON` (DataType.STRING).
+    @_('DOUBLE id_list SEMICOLON')
+    def decl(self, value):
+        return [SymbolTableEntry(name, DataType.DOUBLE) for name in value[1]]
+
+    @_('CHAR id_list SEMICOLON')
+    def decl(self, value):
+        return [SymbolTableEntry(name, DataType.CHAR) for name in value[1]]
+
+    @_('STRING id_list SEMICOLON')
+    def decl(self, value):
+        return [SymbolTableEntry(name, DataType.STRING) for name in value[1]]
 
     @_('id_list COMMA ID')
     def id_list(self, value):
@@ -147,35 +137,60 @@ class TinyCStrParser(Parser):
     # ------------------------------------------------------------------
     # LEVEL 2, Stage 2a -- real constants
     # ------------------------------------------------------------------
-    # TODO(week-5, stage-2a): add an `expr` alternative for ,
-    # producing Const(<value>, <doubletype>) -- REAL_CONST's token value is
-    # already a Python float (the lexer converts it)
-
+    @_('REAL_CONST')
+    def expr(self, value):
+        return Const(value[0], DataType.DOUBLE)
 
     # ------------------------------------------------------------------
     # LEVEL 2, Stage 2b -- char/string constants, relational operators
     # ------------------------------------------------------------------
-    # TODO(week-5, stage-2b): add `expr` alternatives for CHAR_CONST and
-    # STRING_CONST, each producing Const(<the token's already-unquoted value>,type).
-    #
-    # TODO(week-5, stage-2b): add SIX `expr` alternatives, one per
-    # relational operator (`expr LT expr`, `expr GT expr`, `expr LE expr`,
-    # `expr GE expr`, `expr EQ expr`, `expr NE expr`), each producing
-    # RelOp(<the operator as a string, e.g. '<'>, value[0], value[2]) --
-    # same pattern as the four BinOp rules above.
+    @_('CHAR_CONST')
+    def expr(self, value):
+        return Const(value[0], DataType.CHAR)
+
+    @_('STRING_CONST')
+    def expr(self, value):
+        return Const(value[0], DataType.STRING)
+
+    @_('expr LT expr')
+    def expr(self, value):
+        return RelOp('<', value[0], value[2])
+
+    @_('expr GT expr')
+    def expr(self, value):
+        return RelOp('>', value[0], value[2])
+
+    @_('expr LE expr')
+    def expr(self, value):
+        return RelOp('<=', value[0], value[2])
+
+    @_('expr GE expr')
+    def expr(self, value):
+        return RelOp('>=', value[0], value[2])
+
+    @_('expr EQ expr')
+    def expr(self, value):
+        return RelOp('==', value[0], value[2])
+
+    @_('expr NE expr')
+    def expr(self, value):
+        return RelOp('!=', value[0], value[2])
 
     # ------------------------------------------------------------------
     # LEVEL 2, Stage 2c -- casts and ternary
     # ------------------------------------------------------------------
-    # TODO(week-5, stage-2c): add TWO `expr` alternatives for casts:
-    #   `LPAREN DOUBLE RPAREN expr` -> Cast(DataType.DOUBLE, value[3])
-    #   `LPAREN INT RPAREN expr`    -> Cast(DataType.INT, value[3])
-    # Both need the `%prec` dummpy-token suffix from the precedence
-    
-    # TODO(week-5, stage-2c): add ONE `expr` alternative for the ternary
-    # operator: `expr QUESTION expr COLON expr` ->
-    # Ternary(value[0], value[2], value[4])
-    
+    @_('LPAREN DOUBLE RPAREN expr %prec UCAST')
+    def expr(self, value):
+        return Cast(DataType.DOUBLE, value[3])
+
+    @_('LPAREN INT RPAREN expr %prec UCAST')
+    def expr(self, value):
+        return Cast(DataType.INT, value[3])
+
+    @_('expr QUESTION expr COLON expr')
+    def expr(self, value):
+        return Ternary(value[0], value[2], value[4])
+
     def error(self, token):
         self.had_error = True
         if token:

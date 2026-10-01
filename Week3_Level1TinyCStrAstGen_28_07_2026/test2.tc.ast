@@ -1,0 +1,14 @@
+Function main
+  Assign
+    Var(a)
+    BinOp(-)
+      BinOp(+)
+        Num(2)
+        Num(3)
+      BinOp(%)
+        BinOp(*)
+          Num(6)
+          Num(7)
+        Num(7)
+  Print
+    Var(a)

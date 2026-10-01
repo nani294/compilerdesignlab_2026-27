@@ -7,6 +7,7 @@ Fill in the TODOs in order: finish every Stage 1a TODO and get Stage 1b ready.
 """
 
 from sly import Lexer
+import sys
 
 
 class TinyCStrLexer(Lexer):
@@ -17,9 +18,10 @@ class TinyCStrLexer(Lexer):
         INT, ID, INTEGER, PRINT, ASSIGN, SEMICOLON, LBRACE, RBRACE, COMMA,LPAREN, RPAREN,   # Stage 1a
         PLUS, MINUS, TIMES, DIVIDE,REMAINDER,                     # Stage 1b
     }
-
-    # skip spaces between tokens.
+    lineno = 1
+ 
     ignore = ' \t'
+    ignore_COMMENT = r'//.*'
 
     # TODO(week-2, stage-1a): ignore // line comments.
     # See docs/sly_help.md ###3 for why this must be an `ignore_`-prefixed
@@ -31,14 +33,16 @@ class TinyCStrLexer(Lexer):
     # @_(r'\n+')
     # def ignore_newline(self, t):
     #     ...
-
+    @_(r'\n+')
+    def ignore_newline(self, t):
+        self.lineno += t.value.count('\n')
     # ------------------------------------------------------------------
     # Stage 1a: keyword table + identifier rule
     # ------------------------------------------------------------------
     # TODO(week-2, stage-1a): fill in the reserved-word(key-word) table.
     keywords = {
-        # 'int': 'INT',
-        # 'print': 'PRINT',
+         'int': 'INT',
+         'print': 'PRINT',
     }
 
     # TODO(week-2, stage-1a): implement the ID rule using the
@@ -49,7 +53,10 @@ class TinyCStrLexer(Lexer):
     # def ID(self, t):
     #     ...
     #     return t
-
+    @_(r'[a-zA-Z_][a-zA-Z0-9_]*')
+    def ID(self, t):
+        t.type = self.keywords.get(t.value, 'ID')
+        return t
     # TODO(week-2, stage-1a): INTEGER — one or more decimal digits.
     # INTEGER = r'...'
 
@@ -61,7 +68,14 @@ class TinyCStrLexer(Lexer):
     # COMMA  = r'...'
     # LPAREN = r'...'
     # RPAREN = r'...'
-
+    INTEGER = r'\d+'
+    ASSIGN = r'='
+    SEMICOLON = r';'
+    LBRACE = r'\{'
+    RBRACE = r'\}'
+    COMMA = r','
+    LPAREN = r'\('
+    RPAREN = r'\)'
 
     # ------------------------------------------------------------------
     # Stage 1b: arithmetic operators and parentheses.
@@ -73,12 +87,17 @@ class TinyCStrLexer(Lexer):
     # TIMES  = r'...'
     # DIVIDE = r'...'
     # REMAINDER = r'...'
-    
+    PLUS   = r'\+'
+    MINUS  = r'-'
+    TIMES  = r'\*'
+    DIVIDE = r'/'
+    REMAINDER = r'%'
+
     # ------------------------------------------------------------------
     # Error handling
     # ------------------------------------------------------------------
-    def error(self, t):
-        """
+    #def error(self, t):
+    """
         TODO(week-2, stage-1a): report the illegal character and current
         line number in EXACTLY this format:
 
@@ -88,8 +107,14 @@ class TinyCStrLexer(Lexer):
 
         Then advance past the single bad character so lexing continues
         (self.index += 1) rather than stopping at the first error.
-        """
-        raise NotImplementedError("implement TinyCStrLexer.error()")
+    """
+    def __init__(self, error_sink=None):
+        self.error_sink = error_sink if error_sink is not None else sys.stdout
+
+    def error(self, t):
+        print(f"ERROR {t.value[0]} {t.lineno}")
+        self.index += 1
+        #raise NotImplementedError("implement TinyCStrLexer.error()")
 
 
 if __name__ == '__main__':
